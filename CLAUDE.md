@@ -83,8 +83,16 @@ type Mission = {
   flashcard: Flashcard | null;
   first_leads: string[];                         // 3 starting points
   time_plan: { step: string; hours: number }[];
-  todos: { title: string; priority: number; done: boolean }[];
-  match_ranking: { member_id: string; score: number; reason: string }[];
+  // To-do hours add up to the time plan's total. Progress shown to the manager
+  // = hours of done to-dos / total hours (3 of 10 hours ticked = 30%).
+  todos: { title: string; priority: number; hours: number; done: boolean }[];
+  // The screens show the confidence badge only; score just orders the list.
+  match_ranking: {
+    member_id: string;
+    confidence: "high" | "moderate" | "low";
+    score: number;
+    reason: string;
+  }[];
   assignee_id: string | null;
   created_at: string;
   sent_at: string | null;
@@ -136,9 +144,9 @@ the file (for example `ANSWER_SYSTEM_PROMPT`). The shared model call is in
 
 | Function | Input | Output |
 |----------|-------|--------|
-| `clarify` | `{ rough_task, knowledge }` | `{ questions: { question, why, options: [string, string, string] }[] }` — 3 to 5 questions, each with three one-click answers specific to the company; the screen adds "Other…" for typing |
+| `clarify` | `{ rough_task, knowledge }` | `{ questions: { question, why, options: [string, string, string] }[] }` — 3 to 5 questions, each with three answers specific to the company; the manager can select several and add "Other…" text, saved joined with "; ". Never asks a formatting question |
 | `flashcard` | `{ rough_task, clarifications, today, knowledge }` | `{ flashcard, first_leads, time_plan, todos }` — knowledge is used for `first_leads` only |
-| `match` | `{ flashcard, team: TeamMember[] }` | `{ ranking: { member_id, score, reason }[] }` — all 6, score 0 to 100, one reason each |
+| `match` | `{ flashcard, team: TeamMember[] }` | `{ ranking: { member_id, confidence, score, reason }[] }` — all 6, best first, confidence high, moderate or low, one reason each |
 | `answer` (intern's agent) | `{ question, flashcard, clarifications }` | `{ decision: "answer" \| "pass_on", answer, source, source_detail }` |
 | `managerAgent` (manager's agent) | `{ handover, flashcard, knowledge: Knowledge[] }` | `{ decision: "answer" \| "escalate", answer, knowledge_id, note }` |
 
@@ -157,28 +165,45 @@ How a question travels:
 Both agents follow the same rule: answer only when the supplied material states
 it, never fill a gap from general knowledge, and pass on when in doubt.
 
-## State of the app (11:15, Sat 14 Nov)
+One exception, decided by the team: formatting questions (template, layout,
+slide count, fonts, colours, charts, file type, naming, number and date formats)
+never reach the manager. The manager's agent answers them from the brand
+guidelines and the previous decks in the knowledge base. If no entry states it
+exactly, it gives the closest precedent from the most recent deck of the same
+type and names that deck. `clarify` never asks the manager a formatting question.
+
+## State of the app (11:45, Sat 14 Nov)
 
 Working, tested once in Lovable's test browser and confirmed in the database:
-- Brief with one-click answer options drawn from company knowledge, plus "Other…".
-- Flashcard with a real date; first leads that name company files.
-- Ranking of the six, send, live arrival on the intern screen.
+- Brief with multi-select answer options drawn from company knowledge, plus
+  "Other…"; no formatting questions asked.
+- Flashcard with a real date; first leads that name company files, including
+  the previous deck to copy the format from.
+- Ranking of the six with High, Moderate or Low confidence badges, send, live
+  arrival on the intern screen.
+- "Plan and to-dos" with hours per to-do; hours-weighted progress shown live on
+  the intern screen and under "Sent missions" on the manager screen.
+- Formatting questions answered by the manager's agent from previous decks,
+  including one no entry states; none reached the manager.
 - Question routing: brief, then manager's agent with company knowledge, then manager.
 - The manager's reply saved as knowledge and reused for a reworded question.
 - The agent exchange shown live on both screens; four-part counter; Reset demo.
 
-The test run of the demo script gave: asked 5, from the brief 1, by the
-manager's agent 3, reached the manager 1.
+The 11:15 run of the demo script gave: asked 5, from the brief 1, by the
+manager's agent 3, reached the manager 1. The 11:40 run (five formatting
+questions and one scope question) gave: asked 6, by the manager's agent 5,
+reached the manager 1; ticking a 2-hour to-do of 7 hours showed 29%.
 
 Not done or not checked:
 - Not published yet. The preview link needs a Lovable login.
 - Never run on two separate laptops.
 - Reuse of a manager's reply across two different missions.
-- Only 3 of the 16 knowledge entries have been asked about. The `eval/` set
+- Formatting questions on a task that is not a deck (for example a written
+  meeting briefing). The knowledge base only describes decks.
+- About 8 of the 20 knowledge entries have been asked about. The `eval/` set
   should cover the rest, plus near-miss questions the manager's agent must
   escalate (for example a competitor trial with a personal email address).
 - "Who to ask" on the flashcard reads "Not specified" unless the manager says.
-- A to-do ticked and reloaded within a second may not save.
 - A mission is saved only on "Approve and send"; there are no drafts.
 
 ## Demo script (2 minutes, we drive, two laptops side by side)
@@ -197,8 +222,9 @@ Not done or not checked:
    manager's agent, reached the manager.
 
 The made-up company is Kettlebridge (rota software for independent restaurants),
-the manager is Dana Whitfield, and the 16 knowledge entries are listed under
-"Company knowledge" on the manager screen.
+the manager is Dana Whitfield, and the 20 knowledge entries (16 general, 4 on
+previous decks and house style) are listed under "Company knowledge" on the
+manager screen.
 
 ## Links
 
