@@ -114,6 +114,11 @@ type Question = {
   source: "flashcard" | "clarification" | "company_knowledge" | "manager_answer" | null;
   source_detail: string | null;                  // flashcard field or knowledge entry title
   knowledge_id: string | null;                   // the entry the manager's agent cited
+  // Set only when the question reaches the manager. The manager never sees the
+  // raw question as the headline: the manager's agent rewrites it so it stands
+  // alone, and offers three replies to pick from (multi-select plus "Other…").
+  manager_question: string | null;
+  suggested_answers: string[] | null;
   trail: { from: Party; to: Party; text: string; at: string }[];
   created_at: string;
   answered_at: string | null;
@@ -148,7 +153,7 @@ the file (for example `ANSWER_SYSTEM_PROMPT`). The shared model call is in
 | `flashcard` | `{ rough_task, clarifications, today, knowledge }` | `{ flashcard, first_leads, time_plan, todos }` — knowledge is used for `first_leads` only |
 | `match` | `{ flashcard, team: TeamMember[] }` | `{ ranking: { member_id, confidence, score, reason }[] }` — all 6, best first, confidence high, moderate or low, one reason each |
 | `answer` (intern's agent) | `{ question, flashcard, clarifications }` | `{ decision: "answer" \| "pass_on", answer, source, source_detail }` |
-| `managerAgent` (manager's agent) | `{ handover, flashcard, knowledge: Knowledge[] }` | `{ decision: "answer" \| "escalate", answer, knowledge_id, note }` |
+| `managerAgent` (manager's agent) | `{ handover, flashcard, knowledge: Knowledge[] }` | `{ decision: "answer", answer, knowledge_id, note }` or `{ decision: "escalate", manager_question, suggested_answers: [string, string, string], note }` |
 
 How a question travels:
 
@@ -158,9 +163,14 @@ How a question travels:
    so it stands alone, the mission goal, and what it checked.
 3. The manager's agent reads the company knowledge. If one entry states the
    answer, it answers and cites that entry. The manager is not asked.
-4. Otherwise it escalates to the manager with a one-line note.
-5. The manager's reply is saved as a `Knowledge` entry, so the manager's agent
-   answers it next time.
+4. Otherwise it escalates. It rewrites the question so the manager understands
+   it without opening the mission, and adds three suggested replies. The
+   manager picks one or more, or types their own.
+5. The manager's reply is saved as a `Knowledge` entry under the rewritten
+   question, so the manager's agent answers it next time.
+
+On every screen the agent-to-agent exchange (the `trail`) is collapsed behind a
+toggle and opens only when clicked. The answer and its source stay visible.
 
 Both agents follow the same rule: answer only when the supplied material states
 it, never fill a gap from general knowledge, and pass on when in doubt.
@@ -172,7 +182,7 @@ guidelines and the previous decks in the knowledge base. If no entry states it
 exactly, it gives the closest precedent from the most recent deck of the same
 type and names that deck. `clarify` never asks the manager a formatting question.
 
-## State of the app (11:45, Sat 14 Nov)
+## State of the app (12:35, Sat 14 Nov)
 
 Working, tested once in Lovable's test browser and confirmed in the database:
 - Brief with multi-select answer options drawn from company knowledge, plus
@@ -185,6 +195,18 @@ Working, tested once in Lovable's test browser and confirmed in the database:
   the intern screen and under "Sent missions" on the manager screen.
 - Formatting questions answered by the manager's agent from previous decks,
   including one no entry states; none reached the manager.
+- Escalated questions reach the manager rewritten, with the original beneath
+  and three suggested replies (multi-select plus "Other…"). Tested at 12:30:
+  "do we include plateplan or nah" arrived as "Should Priya Raman include
+  Plateplan in the competitor benchmark due Friday 20 November 2026 at 16:00?
+  The watchlist classifies Plateplan as secondary because it sells only to
+  large chains."
+- Agent-to-agent exchange collapsed behind "Agents exchanged N messages" on
+  both screens; opens on click.
+- A teammate's visual redesign (light and dark themes) went in at 12:05 to 12:24.
+
+Known wart: a suggested reply combined with "Other…" text joins as ".; "
+("…exclude US coverage.; Use public sources only.").
 - Question routing: brief, then manager's agent with company knowledge, then manager.
 - The manager's reply saved as knowledge and reused for a reworded question.
 - The agent exchange shown live on both screens; four-part counter; Reset demo.
